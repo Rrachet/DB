@@ -5,7 +5,7 @@ where python >nul 2>nul || (echo Python not found. Install it from https://www.p
 python -m venv .venv
 call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-desktop.txt
 echo.
 echo Done. If you haven't yet, set your API key (then open a new window):
 echo   setx ANTHROPIC_API_KEY "sk-ant-..."

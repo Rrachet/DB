@@ -40,6 +40,22 @@ Things to try:
 - "Remember that my sister's birthday is 12 March."
 - "Remind me at 6:30 pm to go to the gym."
 
+## Web version (Vercel)
+
+This repo also has a web chat version of DB (`public/` + `api/chat.py`). It can chat and search the
+web from any phone or browser. Controlling your PC (apps, files, voice, screen) still needs the Windows app.
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FRrachet%2FDB&env=ANTHROPIC_API_KEY,DB_WEB_PASSWORD&envDescription=Your%20Anthropic%20API%20key%20and%20a%20password%20for%20the%20site)
+
+To deploy:
+1. Click the button above, or go to <https://vercel.com/new> and import `Rrachet/DB`. Leave the framework as **Other**.
+2. Add two environment variables:
+   - `ANTHROPIC_API_KEY`: your key from console.anthropic.com
+   - `DB_WEB_PASSWORD`: any password. The site asks for it, so strangers can't use your API key.
+3. Click **Deploy**. Every push to `main` redeploys automatically.
+
+Optional: `DB_MODEL` and `DB_EFFORT` work the same as in the Windows app.
+
 ## Safety
 
 - DB **asks before every PowerShell command** and before overwriting a file. In voice mode, say "yes" to allow it.
@@ -71,4 +87,6 @@ db/
   voice.py      text-to-speech (pyttsx3) and speech-to-text (SpeechRecognition)
   memory.py     long-term memory (JSON file)
   reminders.py  reminders plus Windows notifications
+api/chat.py     web version: Vercel serverless function
+public/         web version: chat page
 ```

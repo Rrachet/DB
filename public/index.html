@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DB Assistant</title>
+<meta name="description" content="DB, a personal assistant powered by Claude.">
+<style>
+  :root {
+    --bg: #070b12; --panel: #0e1522; --line: #1d2a3f; --text: #e6edf7; --muted: #8a9ab3;
+    --accent: #38bdf8; --accent2: #0ea5e9; --me: #13314a; --err: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; min-height: 100vh;
+          display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; align-items: center; gap: 14px; }
+  .orb { width: 44px; height: 44px; border-radius: 50%; flex: none;
+         background: radial-gradient(circle at 35% 35%, #bae6fd, var(--accent) 40%, #075985 75%);
+         box-shadow: 0 0 24px #38bdf880; animation: pulse 3s ease-in-out infinite; }
+  .orb.busy { animation-duration: .8s; }
+  @keyframes pulse { 50% { box-shadow: 0 0 40px #38bdf8cc; } }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  header a.dl { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 14px;
+                border: 1px solid var(--line); padding: 6px 12px; border-radius: 8px; white-space: nowrap; }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; white-space: pre-wrap; word-wrap: break-word; }
+  .db { background: var(--panel); border: 1px solid var(--line); align-self: flex-start; }
+  .me { background: var(--me); align-self: flex-end; }
+  .err { color: var(--err); align-self: center; font-size: 14px; }
+  form { display: flex; gap: 8px; position: sticky; bottom: 12px; }
+  input { flex: 1; min-width: 0; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+          border-radius: 10px; padding: 12px 14px; font: inherit; }
+  input:focus { outline: 2px solid var(--accent2); border-color: transparent; }
+  button { background: var(--accent2); color: #001018; border: 0; border-radius: 10px; padding: 0 18px;
+           font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .small { color: var(--muted); font-size: 13px; text-align: center; }
+  .small button { background: none; color: var(--accent); padding: 0; font-size: 13px; font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="orb" id="orb"></div>
+    <div>
+      <h1>DB</h1>
+      <p>Your personal assistant</p>
+    </div>
+    <a class="dl" href="https://github.com/Rrachet/DB/archive/refs/heads/main.zip">Get the Windows app</a>
+  </header>
+
+  <div id="log">
+    <div class="msg db">Hi, I'm DB. Ask me anything, and I can search the web too. To control your PC by voice, get the Windows app.</div>
+  </div>
+
+  <form id="f">
+    <input id="q" placeholder="Ask DB..." autocomplete="off" autofocus>
+    <button id="send">Send</button>
+  </form>
+  <div class="small"><button id="new" type="button">New chat</button> · <button id="lock" type="button">Change password</button></div>
+</div>
+
+<script>
+  const log = document.getElementById("log"), form = document.getElementById("f"),
+        q = document.getElementById("q"), send = document.getElementById("send"), orb = document.getElementById("orb");
+  let history = [];
+
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  let password = store.get("db_pw");
+
+  function add(text, cls) {
+    const d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.textContent = text;
+    log.appendChild(d);
+    d.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+
+  function askPassword() {
+    password = prompt("DB password (set by the site owner in Vercel):") || "";
+    if (password) store.set("db_pw", password);
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = q.value.trim();
+    if (!text) return;
+    if (!password) askPassword();
+    if (!password) return;
+    q.value = "";
+    add(text, "me");
+    history.push({ role: "user", content: text });
+    send.disabled = true; orb.classList.add("busy");
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-DB-Password": password },
+        body: JSON.stringify({ messages: history }),
+      });
+      const data = await r.json().catch(() => ({ error: "Unexpected response from server." }));
+      if (r.ok) {
+        add(data.reply, "db");
+        history.push({ role: "assistant", content: data.reply });
+      } else {
+        history.pop();
+        add(data.error || "Something went wrong.", "err");
+        if (r.status === 401) { store.del("db_pw"); password = null; }
+      }
+    } catch {
+      history.pop();
+      add("Can't reach DB. Check your connection.", "err");
+    } finally {
+      send.disabled = false; orb.classList.remove("busy"); q.focus();
+    }
+  });
+
+  document.getElementById("new").onclick = () => {
+    history = [];
+    log.innerHTML = "";
+    add("New chat. What do you need?", "db");
+  };
+  document.getElementById("lock").onclick = () => { store.del("db_pw"); askPassword(); };
+</script>
+</body>
+</html>
