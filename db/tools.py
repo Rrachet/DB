@@ -8,7 +8,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from . import memory, reminders
+from . import llm, memory, reminders
 from .config import AUTO_APPROVE
 
 MAX_OUTPUT = 10_000
@@ -106,8 +106,31 @@ TOOLS = [
         "description": "Cancel a reminder by its number.",
         "input_schema": _obj({"reminder_id": {"type": "integer"}}, ["reminder_id"]),
     },
-    # Runs on Anthropic's servers: no code needed here.
-    {"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
+    {
+        "name": "search_web",
+        "description": "Search the web for current information (news, prices, facts, how-tos).",
+        "input_schema": _obj({"query": {"type": "string"}}, ["query"]),
+    },
+]
+
+# Claude has its own built-in web search, so it gets that instead of search_web.
+CLAUDE_TOOLS = [t for t in TOOLS if t["name"] != "search_web"] + [
+    {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
+]
+
+
+def _plain_schema(schema):
+    s = {k: v for k, v in schema.items() if k != "additionalProperties"}
+    if not s.get("properties"):
+        s.pop("required", None)
+    return s
+
+
+# Same tools in the format Gemini, Groq and OpenRouter use.
+OPENAI_TOOLS = [
+    {"type": "function", "function": {"name": t["name"], "description": t["description"],
+                                      "parameters": _plain_schema(t["input_schema"])}}
+    for t in TOOLS
 ]
 
 
@@ -172,6 +195,9 @@ def run(name: str, args: dict, confirm) -> str | list:
 
     if name == "take_screenshot":
         return _screenshot()
+
+    if name == "search_web":
+        return _trim(llm.google_search(args["query"]))
 
     if name == "get_datetime":
         return datetime.now().strftime("%A %d %B %Y, %H:%M")

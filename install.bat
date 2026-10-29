@@ -7,7 +7,8 @@ call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r requirements-desktop.txt
 echo.
-echo Done. If you haven't yet, set your API key (then open a new window):
-echo   setx ANTHROPIC_API_KEY "sk-ant-..."
+echo Done. If you haven't yet, set a free Gemini key from https://aistudio.google.com/apikey
+echo (then open a new window):
+echo   setx GEMINI_API_KEY "your-key"
 echo Start DB with start_db.bat (typing) or start_db_voice.bat (hands-free).
 pause

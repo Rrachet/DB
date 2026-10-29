@@ -9,9 +9,7 @@ import argparse
 import os
 import sys
 
-import anthropic
-
-from . import reminders
+from . import llm, reminders
 from .brain import Brain
 
 
@@ -21,9 +19,11 @@ def main():
     parser.add_argument("--speak", action="store_true", help="read replies out loud")
     args = parser.parse_args()
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("DB needs an Anthropic API key. Run this once in PowerShell, then open a new window:")
-        print('  setx ANTHROPIC_API_KEY "sk-ant-..."')
+    if not llm.available():
+        print("DB needs an AI key. The easiest free one is Google Gemini:")
+        print("  1. Get a key at https://aistudio.google.com/apikey")
+        print('  2. In PowerShell run:  setx GEMINI_API_KEY "your-key"   then open a new window.')
+        print("Groq (GROQ_API_KEY), OpenRouter (OPENROUTER_API_KEY) and Claude (ANTHROPIC_API_KEY) also work.")
         sys.exit(1)
 
     speaker = None
@@ -56,6 +56,7 @@ def main():
         print(f"  {status}", flush=True)
 
     brain = Brain(confirm)
+    print(f"Using: {brain.provider_names}")
     reminders.start_watcher(lambda msg: out(f"Reminder: {msg}"))
 
     def handle(text):
@@ -65,14 +66,16 @@ def main():
             return
         try:
             out(brain.ask(text, on_status))
-        except anthropic.AuthenticationError:
-            out("My API key isn't working. Check ANTHROPIC_API_KEY.")
-        except anthropic.RateLimitError:
-            out("I'm being rate limited. Try again in a minute.")
-        except anthropic.APIConnectionError:
-            out("I can't reach the internet right now.")
-        except anthropic.APIError as e:
-            out(f"Something went wrong talking to Claude: {e}")
+        except llm.LLMError as e:
+            print(f"  (details: {e})")
+            if "connection failed" in str(e):
+                out("I can't reach the internet right now.")
+            elif "HTTP 429" in str(e):
+                out("I've hit my free limit for now. Try again in a minute, or add another free key.")
+            elif "HTTP 401" in str(e) or "HTTP 403" in str(e) or "API key not valid" in str(e):
+                out("My API key isn't working. Check the key you set.")
+            else:
+                out("Something went wrong getting an answer. Try again.")
 
     if listener:
         out("DB is online. Say 'Hey DB' followed by what you need.")

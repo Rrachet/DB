@@ -10,6 +10,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 MEMORY_FILE = DATA_DIR / "memory.json"
 REMINDERS_FILE = DATA_DIR / "reminders.json"
 
+# Claude settings (only used when ANTHROPIC_API_KEY is your AI key).
 MODEL = os.environ.get("DB_MODEL", "claude-opus-5-5")
 # low = faster and cheaper, high = more careful.
 EFFORT = os.environ.get("DB_EFFORT", "medium")

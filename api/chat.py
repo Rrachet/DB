@@ -2,27 +2,27 @@
 
 POST /api/chat  with header  X-DB-Password: <DB_WEB_PASSWORD>
 body: {"messages": [{"role": "user" | "assistant", "content": "..."}]}
-returns: {"reply": "..."}
+returns: {"reply": "...", "provider": "gemini"}
 
-The web version can chat and search the web. Controlling your PC
-(apps, files, voice, screen) needs the Windows app.
+Works with free AI keys (Gemini, Groq, OpenRouter) or Claude. See _providers.py.
+Controlling your PC (apps, files, voice, screen) needs the Windows app.
 """
 
 import hmac
 import json
 import os
+import sys
 from http.server import BaseHTTPRequestHandler
 
-import anthropic
+sys.path.insert(0, os.path.dirname(__file__))
+import _providers  # noqa: E402
 
-MODEL = os.environ.get("DB_MODEL", "claude-opus-5-5")
-EFFORT = os.environ.get("DB_EFFORT", "medium")
 MAX_MESSAGES = 40
 MAX_CHARS = 8000
 
 SYSTEM_PROMPT = """You are DB, a friendly personal assistant, talking through the DB website.
-Here you can chat and search the web. You can't control the user's computer from the website;
-if they ask for that, tell them the DB Windows app can do it.
+Here you can chat and, when available, search the web. You can't control the user's computer
+from the website; if they ask for that, tell them the DB Windows app can do it.
 Keep replies short and clear."""
 
 
@@ -46,28 +46,6 @@ def _clean(messages):
     return out
 
 
-def _reply(messages):
-    client = anthropic.Anthropic()
-    for _ in range(5):
-        response = client.beta.messages.create(
-            model=MODEL,
-            max_tokens=16000,
-            system=SYSTEM_PROMPT,
-            tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 5}],
-            messages=messages,
-            output_config={"effort": EFFORT},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-        )
-        if response.stop_reason == "pause_turn":  # web search paused; resend to resume
-            messages = messages + [{"role": "assistant", "content": response.content}]
-            continue
-        if response.stop_reason == "refusal":
-            return "Sorry, I can't help with that one."
-        return "".join(b.text for b in response.content if b.type == "text").strip() or "Done."
-    return "That search took too long. Please try again."
-
-
 class handler(BaseHTTPRequestHandler):
     def _send(self, status, payload):
         body = json.dumps(payload).encode()
@@ -81,8 +59,8 @@ class handler(BaseHTTPRequestHandler):
         password = os.environ.get("DB_WEB_PASSWORD", "")
         if not password:
             return self._send(503, {"error": "The site owner hasn't set DB_WEB_PASSWORD yet."})
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            return self._send(503, {"error": "The site owner hasn't set ANTHROPIC_API_KEY yet."})
+        if not _providers.available():
+            return self._send(503, {"error": "The site owner hasn't added an AI key yet (e.g. GEMINI_API_KEY)."})
         given = self.headers.get("X-DB-Password", "")
         if not hmac.compare_digest(given.encode(), password.encode()):
             return self._send(401, {"error": "Wrong password."})
@@ -97,11 +75,11 @@ class handler(BaseHTTPRequestHandler):
             return self._send(400, {"error": str(e)})
 
         try:
-            return self._send(200, {"reply": _reply(messages)})
-        except anthropic.RateLimitError:
-            return self._send(429, {"error": "DB is busy. Try again in a minute."})
-        except anthropic.APIError as e:
-            return self._send(502, {"error": f"Claude API error: {getattr(e, 'message', str(e))}"})
+            text, provider = _providers.reply(SYSTEM_PROMPT, messages)
+            return self._send(200, {"reply": text, "provider": provider})
+        except _providers.ProviderError as e:
+            print(f"All providers failed: {e}", flush=True)  # shows in Vercel logs
+            return self._send(502, {"error": "DB couldn't get an answer right now. Try again in a minute."})
 
     def do_GET(self):
-        self._send(200, {"ok": True, "model": MODEL})
+        self._send(200, {"ok": True, "providers": _providers.available()})

@@ -3,6 +3,6 @@
   "framework": null,
   "outputDirectory": "public",
   "functions": {
-    "api/chat.py": { "maxDuration": 60 }
+    "api/chat.py": { "maxDuration": 120 }
   }
 }

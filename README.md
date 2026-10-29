@@ -8,16 +8,27 @@ DB lives on your PC. Type or talk to it, and it gets things done:
 - **Memory:** remembers things about you (name, preferences, people) between sessions.
 - **Reminders:** *"Remind me to call Mom in 20 minutes"* gives you a Windows notification, spoken aloud in voice mode.
 
-DB uses Claude as its brain, so it needs an Anthropic API key. Usage is billed to that key.
+DB needs an AI key. **Free options work:** Google Gemini (recommended), Groq, or OpenRouter.
+Add more than one and DB switches automatically when one hits its free limit. Claude (paid) also works.
+
+| Provider | Free key | Environment variable | Notes |
+|---|---|---|---|
+| Google Gemini | <https://aistudio.google.com/apikey> | `GEMINI_API_KEY` | Best free choice: tools, screen vision, Google Search |
+| Groq | <https://console.groq.com/keys> | `GROQ_API_KEY` | Very fast. Text only (no screen vision) |
+| OpenRouter | <https://openrouter.ai/keys> | `OPENROUTER_API_KEY` | Picks a random free model |
+| Claude | <https://console.anthropic.com/settings/keys> | `ANTHROPIC_API_KEY` | Paid, most capable. Used only if it's your only key, or listed first in `DB_PROVIDERS` |
+
+Free tiers have daily and per-minute limits, and some free hosts may use your prompts for training. Check each provider's terms.
 
 ## Setup (one time)
 
 1. Install **Python 3.11 or newer** from <https://www.python.org/downloads/>. Tick **"Add python.exe to PATH"**.
-2. Get an API key from <https://console.anthropic.com/settings/keys>.
+2. Get a free key from <https://aistudio.google.com/apikey> (sign in with Google, click **Create API key**).
 3. Open PowerShell and save the key (replace with yours), then close PowerShell:
    ```powershell
-   setx ANTHROPIC_API_KEY "sk-ant-..."
+   setx GEMINI_API_KEY "your-key"
    ```
+   Optional extra free backups: `setx GROQ_API_KEY "..."` and `setx OPENROUTER_API_KEY "..."`.
 4. Download this repo (green **Code** button, then **Download ZIP**) and unzip it, e.g. to `C:\DB`.
 5. Double-click **`install.bat`**.
 
@@ -45,13 +56,13 @@ Things to try:
 This repo also has a web chat version of DB (`public/` + `api/chat.py`). It can chat and search the
 web from any phone or browser. Controlling your PC (apps, files, voice, screen) still needs the Windows app.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FRrachet%2FDB&env=ANTHROPIC_API_KEY,DB_WEB_PASSWORD&envDescription=Your%20Anthropic%20API%20key%20and%20a%20password%20for%20the%20site)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FRrachet%2FDB&env=GEMINI_API_KEY,DB_WEB_PASSWORD&envDescription=A%20free%20Gemini%20API%20key%20and%20a%20password%20for%20the%20site)
 
 To deploy:
 1. Click the button above, or go to <https://vercel.com/new> and import `Rrachet/DB`. Leave the framework as **Other**.
-2. Add two environment variables:
-   - `ANTHROPIC_API_KEY`: your key from console.anthropic.com
-   - `DB_WEB_PASSWORD`: any password. The site asks for it, so strangers can't use your API key.
+2. Add environment variables:
+   - `GEMINI_API_KEY`: free key from <https://aistudio.google.com/apikey> (and optionally `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`)
+   - `DB_WEB_PASSWORD`: any password. The site asks for it, so strangers can't use your keys.
 3. Click **Deploy**. Every push to `main` redeploys automatically.
 
 Optional: `DB_MODEL` and `DB_EFFORT` work the same as in the Windows app.
@@ -66,8 +77,12 @@ Optional: `DB_MODEL` and `DB_EFFORT` work the same as in the Windows app.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `DB_MODEL` | `claude-opus-5-5` | Which Claude model to use. `claude-sonnet-5-5` is cheaper. |
-| `DB_EFFORT` | `medium` | `low` is faster and cheaper, `high` is more careful. |
+| `DB_PROVIDERS` | `gemini,groq,openrouter,claude` | Which providers to use, in order (only ones with a key are used). |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model. |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Groq model. |
+| `OPENROUTER_MODEL` | `openrouter/free` | OpenRouter model (`openrouter/free` picks a free one). |
+| `DB_MODEL` | `claude-opus-5-5` | Claude model. `claude-sonnet-5-5` is cheaper. |
+| `DB_EFFORT` | `medium` | Claude only: `low` is faster and cheaper, `high` is more careful. |
 | `DB_AUTO_APPROVE` | `0` | `1` = run commands without asking. |
 | `DB_DATA_DIR` | `~\.db_assistant` | Where memory and reminders are saved. |
 
@@ -82,11 +97,13 @@ Optional: `DB_MODEL` and `DB_EFFORT` work the same as in the Windows app.
 ```
 db/
   __main__.py   typing / voice loop, asks you for approval
-  brain.py      sends your request to Claude and runs the tools it picks
+  brain.py      sends your request to the AI and runs the tools it picks
+  llm.py        free providers (Gemini, Groq, OpenRouter) and web search
   tools.py      what DB can do: PowerShell, apps, files, screenshot, memory, reminders, web search
   voice.py      text-to-speech (pyttsx3) and speech-to-text (SpeechRecognition)
   memory.py     long-term memory (JSON file)
   reminders.py  reminders plus Windows notifications
 api/chat.py     web version: Vercel serverless function
+api/_providers.py  web version: AI providers with automatic fallback
 public/         web version: chat page
 ```
