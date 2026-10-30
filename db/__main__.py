@@ -2,14 +2,14 @@
 
     python -m db            type to DB
     python -m db --speak    type to DB, DB answers out loud
-    python -m db --voice    say "Hey DB ..." and talk hands-free
+    python -m db --voice    say "Hey Jarvis ..." / "Hey Ultron ..." and talk hands-free
 """
 
 import argparse
 import os
 import sys
 
-from . import llm, reminders
+from . import llm, personas, reminders
 from .brain import Brain
 
 
@@ -60,6 +60,12 @@ def main():
     reminders.start_watcher(lambda msg: out(f"Reminder: {msg}"))
 
     def handle(text):
+        if text.strip().lower().lstrip("/") in personas.PERSONAS and text.strip().startswith("/"):
+            mode = text.strip().lower().lstrip("/")
+            personas.set_current(mode)
+            brain.reset()
+            out(f"{personas.PERSONAS[mode]['title']} online.")
+            return
         if text.strip().lower() in ("/new", "new chat"):
             brain.reset()
             out("Starting fresh. I still remember what you told me to remember.")
@@ -78,16 +84,22 @@ def main():
                 out("Something went wrong getting an answer. Try again.")
 
     if listener:
-        out("DB is online. Say 'Hey DB' followed by what you need.")
+        title = personas.PERSONAS[personas.current()]["title"]
+        out(f"{title} online. Say 'Hey Jarvis' or 'Hey Ultron' followed by what you need.")
         from .voice import split_wake_word
 
         while True:
             heard = listener.listen()
             if not heard:
                 continue
-            command = split_wake_word(heard)
-            if command is None:
+            woke = split_wake_word(heard)
+            if woke is None:
                 continue  # not talking to DB
+            mode, command = woke
+            if mode and mode != personas.current():
+                personas.set_current(mode)
+                brain.reset()
+                out(f"{personas.PERSONAS[mode]['title']} online.")
             print(f"You: {heard}")
             if not command:
                 speaker.say("Yes?", wait=True)
@@ -101,7 +113,8 @@ def main():
                 break
             handle(command)
     else:
-        out("DB is online. Type what you need. '/new' starts a fresh chat, 'exit' quits.")
+        title = personas.PERSONAS[personas.current()]["title"]
+        out(f"{title} online. Type what you need. '/jarvis' or '/ultron' switches mode, '/new' starts fresh, 'exit' quits.")
         while True:
             try:
                 text = input("You: ").strip()

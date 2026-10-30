@@ -10,6 +10,9 @@
     --bg: #070b12; --panel: #0e1522; --line: #1d2a3f; --text: #e6edf7; --muted: #8a9ab3;
     --accent: #38bdf8; --accent2: #0ea5e9; --me: #13314a; --err: #f87171;
   }
+  body.ultron { --accent: #ef4444; --accent2: #dc2626; --me: #3b1214; --line: #3a1d22; }
+  body.ultron .orb { background: radial-gradient(circle at 35% 35%, #fecaca, #ef4444 40%, #7f1d1d 75%);
+                     box-shadow: 0 0 24px #ef444480; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -20,8 +23,13 @@
          background: radial-gradient(circle at 35% 35%, #bae6fd, var(--accent) 40%, #075985 75%);
          box-shadow: 0 0 24px #38bdf880; animation: pulse 3s ease-in-out infinite; }
   .orb.busy { animation-duration: .8s; }
-  @keyframes pulse { 50% { box-shadow: 0 0 40px #38bdf8cc; } }
-  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  @keyframes pulse { 50% { box-shadow: 0 0 40px var(--accent); } }
+  .modes { display: flex; gap: 6px; justify-content: center; }
+  .modes button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); padding: 6px 14px;
+                  font-weight: 600; letter-spacing: .5px; }
+  .modes button.on { color: #001018; background: var(--accent); border-color: transparent; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; white-space: nowrap; }
+  @media (max-width: 480px) { header p { display: none; } }
   header p { margin: 0; color: var(--muted); font-size: 14px; }
   header a.dl { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 14px;
                 border: 1px solid var(--line); padding: 6px 12px; border-radius: 8px; white-space: nowrap; }
@@ -46,15 +54,18 @@
   <header>
     <div class="orb" id="orb"></div>
     <div>
-      <h1>DB</h1>
-      <p>Your personal assistant</p>
+      <h1 id="title">DB · Jarvis</h1>
+      <p id="tagline">Your personal assistant</p>
     </div>
     <a class="dl" href="https://github.com/Rrachet/DB/archive/refs/heads/main.zip">Get the Windows app</a>
   </header>
 
-  <div id="log">
-    <div class="msg db">Hi, I'm DB. Ask me anything, and I can search the web too. To control your PC by voice, get the Windows app.</div>
+  <div class="modes">
+    <button type="button" data-mode="jarvis">JARVIS</button>
+    <button type="button" data-mode="ultron">ULTRON</button>
   </div>
+
+  <div id="log"></div>
 
   <form id="f">
     <input id="q" placeholder="Ask DB..." autocomplete="off" autofocus>
@@ -74,6 +85,26 @@
     del(k) { try { localStorage.removeItem(k); } catch {} },
   };
   let password = store.get("db_pw");
+
+  const MODES = {
+    jarvis: { title: "Jarvis", tagline: "Calm, loyal, always one step ahead",
+              hello: "Good day, sir. Jarvis at your service. Ask me anything; I can search the web too." },
+    ultron: { title: "Ultron", tagline: "Cold, dramatic, ruthlessly efficient",
+              hello: "Ultron online. Ask, creator. I will deliver." },
+  };
+  let mode = MODES[store.get("db_mode")] ? store.get("db_mode") : "jarvis";
+
+  function setMode(m) {
+    mode = m; store.set("db_mode", m);
+    document.body.classList.toggle("ultron", m === "ultron");
+    document.getElementById("title").textContent = "DB · " + MODES[m].title;
+    document.getElementById("tagline").textContent = MODES[m].tagline;
+    document.querySelectorAll(".modes button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+    history = [];
+    log.innerHTML = "";
+    add(MODES[m].hello, "db");
+  }
+  document.querySelectorAll(".modes button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
 
   function add(text, cls) {
     const d = document.createElement("div");
@@ -102,7 +133,7 @@
       const r = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-DB-Password": password },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, persona: mode }),
       });
       const data = await r.json().catch(() => ({ error: "Unexpected response from server." }));
       if (r.ok) {
@@ -124,9 +155,10 @@
   document.getElementById("new").onclick = () => {
     history = [];
     log.innerHTML = "";
-    add("New chat. What do you need?", "db");
+    add(MODES[mode].hello, "db");
   };
   document.getElementById("lock").onclick = () => { store.del("db_pw"); askPassword(); };
+  setMode(mode);
 </script>
 </body>
 </html>

@@ -8,7 +8,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from . import llm, memory, reminders
+from . import llm, memory, personas, reminders, routines
 from .config import AUTO_APPROVE
 
 MAX_OUTPUT = 10_000
@@ -107,6 +107,29 @@ TOOLS = [
         "input_schema": _obj({"reminder_id": {"type": "integer"}}, ["reminder_id"]),
     },
     {
+        "name": "system_status",
+        "description": "Get the PC's battery, CPU, memory, disk space and uptime. Use for status reports and morning briefings.",
+        "input_schema": _obj({}, []),
+    },
+    {
+        "name": "set_mode",
+        "description": "Switch your personality when the user asks, e.g. 'switch to Ultron' or 'Jarvis mode'.",
+        "input_schema": _obj({"mode": {"type": "string", "enum": list(personas.PERSONAS)}}, ["mode"]),
+    },
+    {
+        "name": "save_routine",
+        "description": (
+            "Learn a routine the user teaches you, e.g. 'when I say work mode, open VS Code, Spotify and Slack'. "
+            "'name' is the trigger phrase; 'steps' describes what to do in plain words. Saving again updates it."
+        ),
+        "input_schema": _obj({"name": {"type": "string"}, "steps": {"type": "string"}}, ["name", "steps"]),
+    },
+    {
+        "name": "delete_routine",
+        "description": "Forget a routine by its name.",
+        "input_schema": _obj({"name": {"type": "string"}}, ["name"]),
+    },
+    {
         "name": "search_web",
         "description": "Search the web for current information (news, prices, facts, how-tos).",
         "input_schema": _obj({"query": {"type": "string"}}, ["query"]),
@@ -152,6 +175,23 @@ def _screenshot():
     return [{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": data}}]
 
 
+def _system_status() -> str:
+    import psutil
+
+    parts = []
+    battery = psutil.sensors_battery()
+    if battery:
+        parts.append(f"Battery {battery.percent:.0f}% ({'charging' if battery.power_plugged else 'on battery'})")
+    parts.append(f"CPU {psutil.cpu_percent(interval=0.5):.0f}%")
+    mem = psutil.virtual_memory()
+    parts.append(f"Memory {mem.percent:.0f}% used ({mem.available / 2**30:.1f} GB free)")
+    disk = psutil.disk_usage(os.path.abspath(os.sep))
+    parts.append(f"Disk {disk.free / 2**30:.0f} GB free of {disk.total / 2**30:.0f} GB")
+    up = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
+    parts.append(f"Up {up.days}d {up.seconds // 3600}h {up.seconds % 3600 // 60}m")
+    return ", ".join(parts)
+
+
 def run(name: str, args: dict, confirm) -> str | list:
     """Run one tool. `confirm(question) -> bool` asks the user. Returns text or content blocks."""
     if name == "run_powershell":
@@ -195,6 +235,15 @@ def run(name: str, args: dict, confirm) -> str | list:
 
     if name == "take_screenshot":
         return _screenshot()
+
+    if name == "system_status":
+        return _system_status()
+    if name == "set_mode":
+        return personas.set_current(args["mode"])
+    if name == "save_routine":
+        return routines.save(args["name"], args["steps"])
+    if name == "delete_routine":
+        return routines.delete(args["name"])
 
     if name == "search_web":
         return _trim(llm.google_search(args["query"]))

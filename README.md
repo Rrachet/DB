@@ -1,12 +1,23 @@
 # DB: your personal assistant for Windows
 
-DB lives on your PC. Type or talk to it, and it gets things done:
+DB lives on your PC. Type or talk to it, and it gets things done. It has two personalities:
+
+- **Jarvis:** calm, polite British butler with dry wit. Calls you "sir", anticipates what you need next.
+- **Ultron:** cold, dramatic, sarcastic, ruthlessly efficient. Calls you "creator". The menace is
+  only theatre: Ultron keeps every safety rule and still asks before running commands.
+
+Say **"Hey Jarvis ..."** or **"Hey Ultron ..."** to pick one, or ask "switch to Ultron". When typing, use `/jarvis` or `/ultron`.
+Both personalities are defined in `shared/personas.json`. Edit the style lines and examples to reshape them.
+
+What DB can do:
 
 - **Chat and tasks:** opens apps and websites, manages files, runs PowerShell, searches the web.
 - **Voice:** say *"Hey DB, open Spotify"* and it answers out loud.
 - **Screen vision:** *"Hey DB, what's on my screen?"* and it reads what's there.
 - **Memory:** remembers things about you (name, preferences, people) between sessions.
 - **Reminders:** *"Remind me to call Mom in 20 minutes"* gives you a Windows notification, spoken aloud in voice mode.
+- **Routines you teach it:** *"When I say work mode, open VS Code, Spotify and Slack."* After that, just say *"work mode"*.
+- **Briefings and status:** *"Good morning"* gets you the time, today's reminders, battery, CPU, memory and disk.
 
 DB needs an AI key. **Free options work:** Google Gemini (recommended), Groq, or OpenRouter.
 Add more than one and DB switches automatically when one hits its free limit. Claude (paid) also works.
@@ -37,11 +48,11 @@ Free tiers have daily and per-minute limits, and some free hosts may use your pr
 | Want to... | Double-click |
 |---|---|
 | Type to DB | `start_db.bat` |
-| Talk hands-free ("Hey DB ...") | `start_db_voice.bat` |
+| Talk hands-free ("Hey Jarvis ..." / "Hey Ultron ...") | `start_db_voice.bat` |
 | Start DB automatically when you log in | `autostart.bat` (run `autostart.bat remove` to undo) |
 
 In typing mode, `start_db.bat --speak` also reads replies aloud. Type `/new` for a fresh chat, `exit` to quit.
-In voice mode, say *"Hey DB, goodbye"* to stop.
+In voice mode, say *"Hey Jarvis, goodbye"* to stop.
 
 Things to try:
 - "What's using my RAM right now?"
@@ -50,6 +61,9 @@ Things to try:
 - "Look at my screen and explain this error."
 - "Remember that my sister's birthday is 12 March."
 - "Remind me at 6:30 pm to go to the gym."
+- "Hey Ultron, good morning."
+- "When I say study mode, close Chrome, open Notion and play lo-fi on YouTube."
+- "Call me boss from now on."
 
 ## Web version (Vercel)
 
@@ -71,7 +85,7 @@ Optional: `DB_MODEL` and `DB_EFFORT` work the same as in the Windows app.
 
 - DB **asks before every PowerShell command** and before overwriting a file. In voice mode, say "yes" to allow it.
 - Want no questions? Set `DB_AUTO_APPROVE=1`. Only do this if you trust what you ask for, since DB can then change anything your account can.
-- Memories and reminders are stored in `C:\Users\<you>\.db_assistant\`. Delete that folder to wipe them.
+- Memories, routines, reminders and the current mode are stored in `C:\Users\<you>\.db_assistant\`. Delete that folder to wipe them.
 
 ## Settings (optional environment variables)
 
@@ -102,8 +116,11 @@ db/
   tools.py      what DB can do: PowerShell, apps, files, screenshot, memory, reminders, web search
   voice.py      text-to-speech (pyttsx3) and speech-to-text (SpeechRecognition)
   memory.py     long-term memory (JSON file)
+  personas.py   Jarvis / Ultron switching
+  routines.py   routines you teach DB
   reminders.py  reminders plus Windows notifications
 api/chat.py     web version: Vercel serverless function
 api/_providers.py  web version: AI providers with automatic fallback
-public/         web version: chat page
+public/         web version: chat page (with Jarvis / Ultron switch)
+shared/personas.json  the two personalities, used by the app and the website
 ```

@@ -8,21 +8,33 @@ import getpass
 import json
 import platform
 
-from . import llm, memory, tools
+from . import llm, memory, personas, routines, tools
 from .config import EFFORT, MAX_HISTORY_MESSAGES, MODEL
 
-SYSTEM_PROMPT = """You are DB, a personal assistant living on {user}'s Windows computer ({os}).
+SYSTEM_PROMPT = """You are DB, a personal AI assistant living on {user}'s Windows computer ({os}).
 You help with anything they need: answering questions, searching the web, opening apps and sites,
 managing files, changing settings, looking at the screen, and keeping reminders.
 
-How to work:
-- Act, don't just explain. If a tool can do it, use it.
-- Commands that delete, install, uninstall, or change system settings must be explained in the
-  'reason' field; the user approves each command.
-- Keep replies short and friendly. Replies may be read aloud, so avoid long lists and markdown tables.
-- When you learn something lasting about the user (name, preferences, routines, people), save it with 'remember'.
+PERSONALITY
+{persona}
 
-What you remember about the user:
+HOW TO WORK
+- Act, don't just explain. If a tool can do it, use it. Chain several tools for multi-step tasks.
+- Commands that delete, install, uninstall, or change system settings must be explained in the
+  'reason' field; the user approves each command. No personality ever skips this.
+- Replies may be read aloud: keep them short, no markdown, no long lists.
+- When you learn something lasting about the user (name, how to address them, preferences, people,
+  routines), save it with 'remember'.
+- If the user greets you in the morning or asks for a briefing, give a short briefing: time
+  (get_datetime), today's reminders, system_status, then offer news or weather.
+- When the user teaches you a routine ("when I say X, do Y"), save it with save_routine. When they
+  later say a routine's name, carry out its steps.
+- To change personality, use set_mode.
+
+ROUTINES YOU'VE LEARNED
+{routines}
+
+WHAT YOU REMEMBER ABOUT THE USER
 {memories}
 """
 
@@ -52,8 +64,10 @@ class Brain:
         return ", ".join(self.providers)
 
     def reset(self):
+        self.persona = personas.current()
         self.system = SYSTEM_PROMPT.format(
-            user=getpass.getuser(), os=platform.platform(), memories=memory.all_memories_text()
+            user=getpass.getuser(), os=platform.platform(), persona=personas.prompt(self.persona),
+            routines=routines.all_text(), memories=memory.all_memories_text(),
         )
         self.messages = [] if self.mode == "claude" else [{"role": "system", "content": self.system}]
 
@@ -64,11 +78,15 @@ class Brain:
         self.messages.append({"role": "user", "content": text})
         try:
             if self.mode == "claude":
-                return self._claude_loop(on_status)
-            return self._free_loop(on_status)
+                answer = self._claude_loop(on_status)
+            else:
+                answer = self._free_loop(on_status)
         except Exception:
             del self.messages[start:]  # drop the half-finished turn so the next request is valid
             raise
+        if personas.current() != self.persona:
+            self.reset()  # new personality starts a fresh conversation; memories and routines carry over
+        return answer
 
     # ---- tool running shared by both loops ----
 

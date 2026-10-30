@@ -4,6 +4,7 @@ import queue
 import re
 import threading
 
+from . import personas
 from .config import WAKE_WORDS
 
 
@@ -19,13 +20,24 @@ class Speaker:
         import pyttsx3
 
         engine = pyttsx3.init()
-        engine.setProperty("rate", 185)
+        voices = engine.getProperty("voices") or []
         while True:
             text = self._q.get()
+            self._apply_persona(engine, voices)
             engine.say(text)
             engine.runAndWait()
             if self._q.empty():
                 self._done.set()
+
+    @staticmethod
+    def _apply_persona(engine, voices):
+        v = personas.PERSONAS[personas.current()]["voice"]
+        engine.setProperty("rate", v["rate"])
+        for wanted in v["prefer"]:  # pick the first installed voice whose name matches
+            for voice in voices:
+                if wanted in f"{voice.name} {getattr(voice, 'gender', '')}".lower():
+                    engine.setProperty("voice", voice.id)
+                    return
 
     def say(self, text: str, wait: bool = False):
         text = re.sub(r"[*#`_>|]", "", text)  # don't read markdown symbols aloud
@@ -61,9 +73,17 @@ class Listener:
 
 
 def split_wake_word(heard: str):
-    """If `heard` starts with a wake word, return the rest of the sentence ('' if none). Else None."""
+    """Check if `heard` starts with a wake word.
+
+    Returns (mode, rest_of_sentence), where mode is "jarvis"/"ultron" if the user called
+    that name (None for "Hey DB"). Returns None if the user wasn't talking to DB.
+    """
     low = heard.lower().strip()
+    for mode in personas.PERSONAS:
+        for w in (f"hey {mode}", f"ok {mode}", f"okay {mode}", mode):
+            if low.startswith(w):
+                return mode, heard.strip()[len(w):].strip(" ,.!?")
     for w in WAKE_WORDS:
         if low.startswith(w):
-            return heard[len(w):].strip(" ,.")
+            return None, heard.strip()[len(w):].strip(" ,.!?")
     return None

@@ -20,10 +20,25 @@ import _providers  # noqa: E402
 MAX_MESSAGES = 40
 MAX_CHARS = 8000
 
-SYSTEM_PROMPT = """You are DB, a friendly personal assistant, talking through the DB website.
+_PERSONAS_FILE = os.path.join(os.path.dirname(__file__), "..", "shared", "personas.json")
+with open(_PERSONAS_FILE, encoding="utf-8") as f:
+    PERSONAS = json.load(f)
+
+SYSTEM_PROMPT = """You are DB, a personal AI assistant, talking through the DB website.
 Here you can chat and, when available, search the web. You can't control the user's computer
 from the website; if they ask for that, tell them the DB Windows app can do it.
-Keep replies short and clear."""
+Keep replies short and clear.
+
+PERSONALITY
+{persona}"""
+
+
+def system_prompt(name):
+    p = PERSONAS.get(name) if isinstance(name, str) else None
+    p = p or PERSONAS["jarvis"]
+    lines = ["\n".join(p["style"]), "", "Examples of your voice (style only; the facts in them are made up):"]
+    lines += [f"{'User' if r == 'user' else 'You'}: {t}" for r, t in p["examples"]]
+    return SYSTEM_PROMPT.format(persona="\n".join(lines))
 
 
 def _clean(messages):
@@ -75,11 +90,11 @@ class handler(BaseHTTPRequestHandler):
             return self._send(400, {"error": str(e)})
 
         try:
-            text, provider = _providers.reply(SYSTEM_PROMPT, messages)
+            text, provider = _providers.reply(system_prompt(data.get("persona")), messages)
             return self._send(200, {"reply": text, "provider": provider})
         except _providers.ProviderError as e:
             print(f"All providers failed: {e}", flush=True)  # shows in Vercel logs
             return self._send(502, {"error": "DB couldn't get an answer right now. Try again in a minute."})
 
     def do_GET(self):
-        self._send(200, {"ok": True, "providers": _providers.available()})
+        self._send(200, {"ok": True, "providers": _providers.available(), "personas": list(PERSONAS)})
